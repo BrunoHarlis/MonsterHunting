@@ -1,135 +1,118 @@
 #include <iostream>
 #include <string>
-#include <array>
-#include <string_view>
-#include <cstdlib>
 #include <ctime>
+#include "Creature.h"
+#include "Monster.h"
+#include "Player.h"
 
-int getRandomNumber(int min, int max)
+bool attackPlayer(Player& p, Monster& m)
 {
-	static constexpr double fraction{ 1.0 / (RAND_MAX + 1.0) };
+	p.reduceHealth(m.getDamage());
+	std::cout << "The " << m.getName() << " hit you for " << m.getDamage() << " damage.\n";
 
-	return min + static_cast<int>((max - min + 1) * (std::rand() * fraction));
+	if (p.isDead())
+		return false;
+
+	//Player did not survive the attack
+	return true;
 }
 
-class Creature
+bool attackMonster(Player& p, Monster& m)
 {
-protected:
-	std::string m_name;
-	char m_symbol;
-	int m_health;
-	int m_damage;
-	int m_gold;
 
-public:
-	Creature(std::string_view name, char symbol, int health, int damage, int gold) :
-		m_name{ name },
-		m_symbol{ symbol },
-		m_health{ health },
-		m_damage{ damage },
-		m_gold{ gold }
+	m.reduceHealth(p.getDamage());
+	std::cout << "You hit the " << m.getName() << " for " << p.getDamage() << " damage.\n";
+
+	if (m.isDead()) 
 	{
+		p.addGold(m.getGold());
+		p.levelUp();
+		std::cout << "You kill the " << m.getName() << ".\n";
+		std::cout << "You are now level " << p.getLevel() 
+			<< " And you found " << m.getGold() << " gold.\n\n";	
+		return true;
 	}
 
-	const std::string& getName() const { return m_name; }
-	char getSymbol() const { return m_symbol; }
-	int getHealth() const { return m_health; }
-	int getDamage() const { return m_damage; }
-	int getGold() const { return m_gold; }
+	return attackPlayer(p, m);
+}
 
-	void reduceHealth(int damageSuffered) { m_health -= damageSuffered; }
-	bool isDead() { return m_health <= 0; }
-	void addGold(int addGolds) { m_gold += addGolds; }
-};
-
-class Player : public Creature
+bool fightMonster(Player& p, Monster& m)
 {
-private:
-	int m_level{ 1 };
 
-public:
-	Player(const std::string& name)
-		:Creature{ name, '@', 10, 1, 0 }
+	bool playerIsAlive{ true };
+
+	while (playerIsAlive)
 	{
-	}
+		std::cout << "(R)un or (F)ight: ";
+		char answer;
+		std::cin >> answer;
 
-	void levelUp()
-	{
-		++m_level;
-		++m_damage;
-	}
-
-	int getLevel() const { return m_level; }
-	bool hasWon() const { return m_level >= 20; }
-};
-
-class Monster : public Creature
-{
-public:
-	enum class Type
-	{
-		DRAGON,
-		ORC,
-		SLIME,
-
-		max_types
-	};
-
-private:
-	static const Creature& getDefaultCreature(Type type)
-	{
-		static std::array<Creature, static_cast<std::size_t>(Type::max_types)> monsterData
+		if (answer == 'F' || answer == 'f') //Player chose to fight
 		{
+			playerIsAlive = attackMonster(p, m);
+			
+			if (m.isDead())
+				return true;
+				 
+		}
+		else //Player chose to run
+		{
+			//Player has 50% chance to run
+			static constexpr double fraction{ 1.0 / (RAND_MAX + 1.0) };
+			int run{ 0 + static_cast<int>((1 - 0 + 1) * (std::rand() * fraction)) };
+
+			if (run == 0)
 			{
-				{"dragon", 'D', 20, 4, 100},
-				{"orc", 'O', 4, 2, 25},
-				{"slime", 'S', 1, 1, 10}
+				std::cout << "You failed to flee.\n";
+				playerIsAlive = attackPlayer(p, m);
 			}
-		};
-
-		return monsterData.at(static_cast<std::size_t>(type));
+			else
+			{
+				std::cout << "\nYou successfully fled.\n";
+				return true;
+			}
+		}
 	}
-
-public:
-	Monster(Type type)
-		: Creature{ getDefaultCreature(type) }
-	{
-	}
-
-	static Monster getRandomMonster()
-	{
-		int num{ getRandomNumber(0, static_cast<int>(Type::max_types) - 1) };
-		return static_cast<Type>(num);
-	}
-
-};
+	
+	std::cout << "\nYou died with " << p.getGold() << " gold :(\n";
+	std::cout << "\nGAME OVER\n";
+	return false;
+}
 
 int main()
 {
 	std::srand(static_cast<unsigned int>(std::time(nullptr))); 
-
-	Monster m2{ Monster::Type::DRAGON };
-	std::cout << "A " << m2.getName() << " (" << m2.getSymbol() << ") was created.\n";
-
-	/*
-	for (int i{ 0 }; i < 10; ++i)
-	{
-		Monster m{ Monster::getRandomMonster() };
-		std::cout << "A " << m.getName() << " (" << m.getSymbol() << ") was created.\n";
-	}
+	std::rand();
 
 	std::cout << "Enter your name: ";
-	std::string namePlayer;
-	std::cin >> namePlayer;
+	std::string playerName;
+	std::cin >> playerName;
+	
+	Player p{ playerName };
+	
+	std::cout << "\nWell come, " << p.getName() << "!\n";
+	
+	bool toPlay{ true };
 
-	Player p{ namePlayer };
+	while (toPlay)
+	{
+		std::cout << "You have " << p.getHealth() << " health and carrying "
+			<< p.getGold() << " gold\n";
 
-	std::cout << "\nWelcome, " << p.getName() << ".\n";
-	std::cout << "You have " << p.getHealth() << " health and are carrying "
-		<< p.getGold() << " gold.\n";
+		//Create a random monster
+		Monster m{ Monster::getRandomMonster() };
 
-	Monster m{ Monster::Type::ORC };
-	std::cout << "A " << m.getName() << " (" << m.getSymbol() << ") was created.\n";
-	*/
+		std::cout << "You find a " << m.getName() << " " << m.getSymbol() << "!\n";
+
+		toPlay = fightMonster(p, m);
+
+		if (p.getLevel() >= 20)
+		{
+			std::cout << "you have " << p.getGold() << " gold!\n";
+			std::cout << "You win!\n";
+			
+		}
+	}
+
 	return 0;
 }
