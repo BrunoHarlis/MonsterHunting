@@ -22,5 +22,4 @@ public:
 	int getLevel() const { return m_level; }
 	bool hasWon() const { return m_level >= 20; }
 };
-
 #endif

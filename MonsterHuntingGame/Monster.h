@@ -22,4 +22,4 @@ public:
 
 	static Monster getRandomMonster();
 };
-#endif#pragma once
+#endif
